@@ -1,0 +1,22 @@
+###SQL DATABASE
+
+conn = sqlite3.connect('player_db.db')
+c = conn.cursor()
+
+c.execute('''CREATE TABLE player
+                  (player_id, name, height, weight, dob, age, position)''')
+
+c.execute('''CREATE TABLE games
+                  (player_id, game_id, date, game_number, week_number, team, opponent, result, score)''')
+
+c.execute('''CREAT TABLE player_game_stats
+                  player_id, game_id, 
+                  pass_attempts, pass_completions, pass_yards, pass_touchdowns, pass_interceptions, passer_rtg, passer_sacks, passer_sack_yards_lost,
+                  rush_attempts, rushing_yards, rushing_touchdowns,
+                  targets, catches, receiving_yards, receiving_touchdowns,
+                  kick_return_attempts, kick_return_yards, kick_return_touchdowns,
+                  punt_return_attempts, punt_return_yards, punt_return_touchdowns,
+                  sacks, solo_tackles, assisted_tackles, interceptions, interception_yards, safeties,
+                  extra_point_attempts, extra_points_made, field_goal_attempts, field_goals_made)
+
+
