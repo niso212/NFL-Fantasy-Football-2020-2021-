@@ -2,7 +2,10 @@ from urllib.request import urlopen
 from bs4  import BeautifulSoup
 import sqlite3
 import re
-main_url = 'https://www.pro-football-reference.com/{0}'
+import string
+import pandas as pd 
+
+main_url = 'https://www.pro-football-reference.com{0}'
 
 player_url = 'https://www.pro-football-reference.com/players/{0}'
 
@@ -10,163 +13,22 @@ player_profile_url = 'https://www.pro-football-reference.com/players/{0}/{1}'
 
 player_gamelog_url = 'https://www.pro-football-reference.com/players/{0}/{1}/gamelog/'
 
-def get_player_links(letter): 
+player_url_df = pd.DataFrame()
+player_profile_df = pd.DataFrame()
+game_profile_df = pd.DataFrame()
+game_stats_df = pd.DataFrame()
 
-  """ 
-  Retrieves the list of links to player profile by last name
+# Scrape player links and input them into the player link dataframe. Player IDs created from unique key in each hyperlink
+i = 0 
+while i < len(string.ascii_uppercase):
+  player_url_df = player_url_df.append(get_player_links(string.ascii_uppercase[i]))
+  i += 1
+  player_url_df['player_id'] = [link[50:].strip('.htm') for link in player_url_df[0].iloc[0:len(player_url_df)]]
 
-  Args:
+player_url_df = player_url_df.set_index('player_id')
 
-    - letter :  first letter of last name to find players by
-  """
-  
-  input_url = player_url.format(letter) 
-  f = urlopen(input_url) 
-  soup = BeautifulSoup(f, 'html.parser')
-  player_links = soup.find('div', {'id': 'div_players'}).find_all('a')
-  all_player_urls = [main_url.format(link['href']) for link in player_links]
-  
-  return all_player_urls
-  
-  
-def get_player_profile(link):
-
-  """
-  Scrapes basic player profile information (i.e. name, height, weight, position, DOB)
-
-  Args:
-
-    - link : link to the player profile  
-  """
-
-  temp_url = urlopen(link, timeout=180)
-  soup = BeautifulSoup(temp_url, 'html.parser')
-
-  profile_data = soup.find('div', {'id': 'meta'})
-
-  player_name = profile_data.find('h1', {'itemprop': 'name'}).contents[0]
-  player_height = profile_data.find('span', {'itemprop':'height'}).contents[0]
-  player_weight = profile_data.find('span', {'itemprop':'weight'}).contents[0][0:3]
-  player_dob = profile_data.find('span', {'itemprop':'birthDate'})['data-birth'].split('-')
-  player_dob_year = player_dob[0]
-  player_dob_month = player_dob[1]
-  player_dob_day = player_dob[2]
-  player_position = profile_data.find_all('p')[1].contents[2].split('\n\t\n')[0].split(' ')[1]
-
-  return player_name, player_height, player_weight, player_dob, player_position
-                               
-                               
-def get_player_gamelog_url(soup): 
-  seasons = []
-  gamelogs = soup.find('div', {'id': 'inner_nav'}).find_all('li')[1].find_all('li')
-  if len(gamelogs) > 0 and gamelogs[0].contents[0].contents[0] == 'Career':
-    for season in gamelogs:
-                  seasons.append({
-                      'year': season.contents[0].contents[0],
-                      'gamelog_url': main_url.format(season.contents[0]['href'])
-                  })
-  i = 1               
-  while i < len(seasons):
-    player_gamelog_url = seasons[i].get('gamelog_url')
-    print(player_gamelog_url)
-    i += 1
-    if i > len(seasons):
-      break
-
-def stats_scraper(player_gamelog_url):
-  url = urlopen(player_gamelog_url)
-  gamelog_soup = BeautifulSoup(url, 'html.parser')
-  games = gamelog_soup.find('table', {'id':'stats'}).find('tbody').find_all('tr')
-
-  for game in games:
-    game_id = game.find('td', {'data-stat': 'game_date'}).find('a', href=True)['href'].replace('/boxscores/', '').replace('.htm', '')
-    game_date = game.find('td', {'data-stat':'game_date'}).contents[0].contents[0]
-    player_age = game.find('td', {'data-stat':'age'}).contents[0]
-    game_number = game.find('td', {'data-stat':'game_num'}).contents[0]
-    week_number = game.find('td', {'data-stat':'week_num'}).contents[0]
-    team = game.find('td', {'data-stat':'team'}).contents[0].contents[0]
-    if game.find('td', {'data-stat':'game_location'}) == '@':
-      game_location = 'A'
-    else:
-      game_location = 'H'
-    opponent = game.find('td', {'data-stat':'opp'}).contents[0].contents[0]
-    game_result = game.find('td', {'data-stat':'game_result'}).contents[0].contents[0][0]
-    game_score = game.find('td', {'data-stat':'game_result'}).contents[0].contents[0][2:]
-
-  ### PASSING STATS
-    if game.find('td', {'data-stat':'pass_att'}) != None:
-      pass_attempts = game.find('td', {'data-stat':'pass_att'}).contents[0]
-    if game.find('td', {'data-stat':'pass_cmp'}) != None:
-      pass_completions = game.find('td', {'data-stat':'pass_cmp'}).contents[0]
-    if game.find('td', {'data-stat':'pass_yds'}) != None:
-      pass_yards = game.find('td', {'data-stat':'pass_yds'}).contents[0]
-    if game.find('td', {'data-stat':'pss_td'}) != None:
-      pass_touchdown = game.find('td', {'data-stat':'pass_td'}).contents[0]
-    if game.find('td', {'data-stat':'pass_int'}) != None:
-      pass_int = game.find('td', {'data-stat':'pass_int'}).contents[0]
-    if game.find('td', {'data-stat':'pass_rating'}) != None:
-      pass_rating = game.find('td', {'data-stat':'pass_rating'}).contents[0]
-    if game.find('td', {'data-stat':'pass_sacked'}) != None:
-      pass_sacks = game.find('td', {'data-start':'pass_sacked'}).contents[0]
-    if game.find('td', {'data-stat':'pass_sacked_yds'}) != None:
-      pass_sack_yds_lost = game.find('td', {'data-stat':'pass_sacked_yds'}).contents[0]
-
-  ### RUSHING STATS
-    if game.find('td', {'data-stat':'rush_att'}) != None:
-      rush_attempts = gamefind('td', {'data-stat':'rush_att'}).contents[0]
-    if game.find('td', {'data-stat':'rush_yds'}) != None:
-      rush_yards = game.find('td', {'data-stat':'rush_yds'}).contents[0]
-    if game.find('td', {'data-stat':'rush_td'}) != None:
-      rush_td = game.find('td', {'data-stat':'rush_td'}).contents[0]
-
-  ### RECIEVING STATS
-    if game.find('td', {'data-stat':'targets'}) != None:
-      targets = game.find('td', {'data-stat':'targets'}).contents[0]
-    if game.find('td', {'data-stat':'rec'}) != None:
-      receptions = game.find('td', {'data-stat':'rec'}).contents[0]
-    if game.find('td', {'data-stat':'rec_yds'}) != None:
-      receiving_yds = game.find('td', {'data-stat':'rec_yds'}).contents[0]
-    if game.find('td', {'data-stat':'rec_td'}) != None:
-      receiving_td = game.find('td', {'data-stat':'rec_td'}).contents[0]
-
-  ### KICK RETURN STATS
-    if game.find('td', {'data-stat':'kick_ret'}) != None:
-      kick_return_att = game.find('td', {'data-stat':'kick_ret'}).contents[0]
-    if game.find('td', {'data-stat':'kick_ret_yds'}) != None:
-      kick_return_yds = game.find('td', {'data-stat':'kick_ret_yds'}).contents[0]
-    if game.find('td', {'data-stat':'kick_ret_td'}) != None:
-      kick_return_td = game.find('td', {'data-stat':'kick_ret_td'}).contents[0] 
-
-  ### PUNT RETURN STATS
-    if game.find('td', {'data-stat':'punt_ret'}) != None:
-      punt_return_att = game.find('td', {'data-stat':'punt_ret'}).contents[0]
-    if game.find('td', {'data-stat':'punt_ret_yds'}) != None:
-      punt_return_yds = game.find('td', {'data-stat':'punt_ret_yds'}).contents[0]
-    if game.find('td', {'data-stat':'punt_ret_td'}) != None:
-      punt_return_td = game.find('td', {'data-stat':'punt_ret_td'}).contents[0] 
-
-  ### DEFENSIVE STATS 
-    if game.find('td', {'data-stat':'sacks'}) != None:
-      sacks = game.find('td', {'data-stat':'sacks'}).contents[0]
-    if game.find('td', {'data-stat':'tackles_solo'}) != None:
-      solo_tackles = game.find('td', {'data-stat':'tackles_solo'}).contents
-    if game.find('td', {'data-stat':'tackles_assists'}) != None:
-      assisted_tackles = game.find('td', {'data-stat':'tackles_assists'}).contents
-    if game.find('td', {'data-stat':'def_int'}) != None:
-      interceptions = game.find('td', {'data-stat':'def_int'}).contents[0] 
-    if game.find('td', {'data-stat':'def_int_yds'}) != None:
-      interception_yards = game.find('td', {'data-stat':'def_int_yds'}).contents[0] 
-    if game.find('td', {'data-stat':'safety_md'}) != None:
-      safeties = game.find('td', {'data-stat':'safety_md'}).contents[0] 
-
-  ### KICKING STATS 
-    if game.find('td', {'data-stat':'xpa'}) != None:
-      extra_point_att = game.find('td', {'data-stat':'xpa'}).contents[0] 
-    if game.find('td', {'data-stat':'xpm'}) != None:
-      extra_point_made = game.find('td', {'data-stat':'xpm'}).contents[0] 
-    if game.find('td', {'data-stat':'fga'}) != None:
-      field_goal_att = game.find('td', {'data-stat':'fga'}).contents[0] 
-    if game.find('td', {'data-stat':'fgm'}) != None:
-      field_goal_made = game.find('td', {'data-stat':'fgm'}).contents[0] 
-
-
+# Scrape player profiles for base info and input into player profile dataframe
+profiles = []
+for link in player_url_df[0].iloc[0:len(player_url_df)]:
+  player_profile = get_player_profile(link) 
+  profiles.append(player_profile)
