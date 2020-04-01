@@ -1,0 +1,62 @@
+def get_player_links(letter): 
+
+  """ 
+  Retrieves the list of links to player profile by last name
+
+  Args:
+
+    - letter :  first letter of last name to find players
+  """
+  
+  input_url = player_url.format(letter) 
+  f = urlopen(input_url) 
+  soup = BeautifulSoup(f, 'html.parser')
+  player_links = soup.find('div', {'id': 'div_players'}).find_all('a')
+  all_player_urls = [main_url.format(link['href']) for link in player_links]
+  
+  return all_player_urls
+  
+  
+  
+def get_player_profile(link):
+  temp_url = urlopen(link, timeout=180)
+  soup = BeautifulSoup(temp_url, 'html.parser')
+
+  profile_data = soup.find('div', {'id': 'meta'})
+
+  player_name = profile_data.find('h1', {'itemprop': 'name'}).contents[0]
+  player_height = profile_data.find('span', {'itemprop':'height'}).contents[0]
+  player_weight = profile_data.find('span', {'itemprop':'weight'}).contents[0][0:3]
+  player_dob = profile_data.find('span', {'itemprop':'birthDate'})['data-birth']
+  player_dob_year = player_dob[0]
+  player_dob_month = player_dob[1]
+  player_dob_day = player_dob[2]
+  player_position = profile_data.find_all('p')[1].contents[2].split('\n\t\n')[0].split(' ')[1].strip('\n\t\t\t')
+  
+  return player_name, player_height, player_weight, player_dob, player_position
+
+def get_player_gamelog_url(soup): 
+
+  """
+  Finds HTML links to player's gamelog from the player's profile page 
+
+  Args: 
+      - soup : BeautifulSoup parsed player profile where link is located
+  """
+
+  seasons = []
+  gamelogs = soup.find('div', {'id': 'inner_nav'}).find_all('li')[1].find_all('li')
+  if len(gamelogs) > 0 and gamelogs[0].contents[0].contents[0] == 'Career':
+    for season in gamelogs:
+                  seasons.append({
+                      'year': season.contents[0].contents[0],
+                      'gamelog_url': main_url.format(season.contents[0]['href'])
+                  })
+  i = 1        
+  
+  while i < len(seasons):
+    player_gamelog_url = seasons[i].get('gamelog_url')
+    print(player_gamelog_url)
+    i += 1
+    if i > len(seasons):
+      break                           
